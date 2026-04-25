@@ -1,13 +1,8 @@
 import { generateObject } from 'ai'
-import { createAnthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { z } from 'zod'
 import type { Issue } from '@/types'
 import type { FileContent } from '@/lib/github'
-
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: 'https://ai-gateway.vercel.sh/v1/anthropic',
-})
 
 const issueSchema = z.object({
   issues: z.array(
@@ -28,7 +23,7 @@ export async function runConfigAuditor(files: FileContent[]): Promise<Issue[]> {
     .join('\n\n')
 
   const { object } = await generateObject({
-    model: anthropic('claude-sonnet-4-6'),
+    model: google('gemini-2.0-flash'),
     schema: issueSchema,
     prompt: `You are a security expert auditing configuration files for security issues.
 
