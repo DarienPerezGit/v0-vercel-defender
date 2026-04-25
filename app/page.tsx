@@ -6,21 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScoreGauge } from "@/components/score-gauge";
 import { AgentPill, type AgentStatus } from "@/components/agent-pill";
-import { IssueCard, type AgentType, type Issue } from "@/components/issue-card";
-import { mockIssues } from "@/lib/mock-data";
+import { IssueCard, type AgentType } from "@/components/issue-card";
+import type { Issue, ScanResult } from "@/types";
 
 type TabFilter = "all" | AgentType;
 
 interface AgentState {
   name: string;
-  icon: "code" | "secret" | "config" | "performance";
+  icon: "code" | "secrets" | "config" | "performance";
   status: AgentStatus;
   issueCount: number;
 }
 
 const initialAgents: AgentState[] = [
   { name: "Code Scanner", icon: "code", status: "idle", issueCount: 0 },
-  { name: "Secret Detector", icon: "secret", status: "idle", issueCount: 0 },
+  { name: "Secret Detector", icon: "secrets", status: "idle", issueCount: 0 },
   { name: "Config Audit", icon: "config", status: "idle", issueCount: 0 },
   { name: "Performance", icon: "performance", status: "idle", issueCount: 0 },
 ];
@@ -28,7 +28,7 @@ const initialAgents: AgentState[] = [
 const tabs: { label: string; value: TabFilter }[] = [
   { label: "All", value: "all" },
   { label: "Code", value: "code" },
-  { label: "Secrets", value: "secret" },
+  { label: "Secrets", value: "secrets" },
   { label: "Config", value: "config" },
   { label: "Performance", value: "performance" },
 ];
@@ -41,53 +41,108 @@ export default function SecurityDashboard() {
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
   const [issues, setIssues] = useState<Issue[]>([]);
   const [score, setScore] = useState(0);
-
-  const getIssueCountByAgent = useCallback((agentIcon: string): number => {
-    return mockIssues.filter((issue) => issue.agent === agentIcon).length;
-  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   const runScan = useCallback(async () => {
+    if (!repoInput.trim()) {
+      setError("Please enter a repository in the format owner/repo");
+      return;
+    }
+
     setIsScanning(true);
     setHasScanned(false);
     setScore(0);
     setIssues([]);
+    setError(null);
     setAgents(initialAgents);
 
-    // Sequentially scan each agent
-    const agentOrder = ["code", "secret", "config", "performance"];
-    
-    for (let i = 0; i < agentOrder.length; i++) {
-      const currentAgent = agentOrder[i];
-      
-      // Set current agent to scanning
-      setAgents((prev) =>
-        prev.map((agent) =>
-          agent.icon === currentAgent
-            ? { ...agent, status: "scanning" as AgentStatus }
-            : agent
-        )
-      );
+    // Animate agents sequentially while waiting for API
+    const agentOrder: ("code" | "secrets" | "config" | "performance")[] = [
+      "code",
+      "secrets",
+      "config",
+      "performance",
+    ];
 
-      // Wait for "scanning" duration
-      await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400));
+    // Start the animation sequence
+    const animationPromise = (async () => {
+      for (let i = 0; i < agentOrder.length; i++) {
+        const currentAgent = agentOrder[i];
 
-      // Complete current agent with issue count
-      const issueCount = getIssueCountByAgent(currentAgent);
-      setAgents((prev) =>
-        prev.map((agent) =>
-          agent.icon === currentAgent
-            ? { ...agent, status: "complete" as AgentStatus, issueCount }
-            : agent
-        )
-      );
+        setAgents((prev) =>
+          prev.map((agent) =>
+            agent.icon === currentAgent
+              ? { ...agent, status: "scanning" as AgentStatus }
+              : agent
+          )
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1200 + Math.random() * 600)
+        );
+
+        // Don't complete until API is done - just keep scanning state
+      }
+    })();
+
+    // Make the actual API call
+    try {
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: repoInput.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Scan failed");
+      }
+
+      const result: ScanResult = data;
+
+      // Wait for animation to complete before showing results
+      await animationPromise;
+
+      // Update agents with actual results
+      setAgents([
+        {
+          name: "Code Scanner",
+          icon: "code",
+          status: "complete",
+          issueCount: result.issues.filter((i) => i.agent === "code").length,
+        },
+        {
+          name: "Secret Detector",
+          icon: "secrets",
+          status: "complete",
+          issueCount: result.issues.filter((i) => i.agent === "secrets").length,
+        },
+        {
+          name: "Config Audit",
+          icon: "config",
+          status: "complete",
+          issueCount: result.issues.filter((i) => i.agent === "config").length,
+        },
+        {
+          name: "Performance",
+          icon: "performance",
+          status: "complete",
+          issueCount: result.issues.filter((i) => i.agent === "performance")
+            .length,
+        },
+      ]);
+
+      setIssues(result.issues);
+      setScore(result.score);
+      setHasScanned(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scan failed");
+      setAgents(initialAgents);
+    } finally {
+      setIsScanning(false);
     }
-
-    // All agents complete - show results
-    setIsScanning(false);
-    setHasScanned(true);
-    setIssues(mockIssues);
-    setScore(34);
-  }, [getIssueCountByAgent]);
+  }, [repoInput]);
 
   const filteredIssues =
     activeTab === "all"
@@ -112,9 +167,11 @@ export default function SecurityDashboard() {
             <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
               <Shield className="w-5 h-5 text-[#0a0a0a]" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">Vercel Defender</span>
+            <span className="text-lg font-semibold tracking-tight">
+              Vercel Defender
+            </span>
           </div>
-          
+
           <div className="flex-1 max-w-md ml-auto">
             <div className="flex gap-2">
               <Input
@@ -122,6 +179,7 @@ export default function SecurityDashboard() {
                 placeholder="owner/repo"
                 value={repoInput}
                 onChange={(e) => setRepoInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !isScanning && runScan()}
                 className="font-mono text-sm bg-secondary border-border placeholder:text-muted-foreground"
               />
               <Button
@@ -142,6 +200,7 @@ export default function SecurityDashboard() {
                 )}
               </Button>
             </div>
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
           </div>
         </div>
       </header>
@@ -152,7 +211,7 @@ export default function SecurityDashboard() {
           <div className="flex flex-col lg:flex-row items-center justify-center gap-12">
             {/* Score Gauge */}
             <ScoreGauge score={hasScanned ? score : 0} isScanning={isScanning} />
-            
+
             {/* Agent Pills */}
             <div className="grid grid-cols-2 gap-3">
               {agents.map((agent) => (
@@ -254,7 +313,12 @@ export default function SecurityDashboard() {
             </div>
             <h2 className="text-xl font-semibold mb-2">No repository scanned</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Enter a repository in the format <code className="font-mono text-sm bg-secondary px-1.5 py-0.5 rounded">owner/repo</code> and click Scan to analyze your codebase for security vulnerabilities.
+              Enter a repository in the format{" "}
+              <code className="font-mono text-sm bg-secondary px-1.5 py-0.5 rounded">
+                owner/repo
+              </code>{" "}
+              and click Scan to analyze your codebase for security
+              vulnerabilities.
             </p>
           </div>
         </section>

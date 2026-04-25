@@ -3,48 +3,37 @@
 import { useState } from "react";
 import { ChevronDown, Code, KeyRound, Settings, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Issue } from "@/types";
 
-export type Severity = "CRITICAL" | "WARNING" | "INFO";
-export type AgentType = "code" | "secret" | "config" | "performance";
-
-export interface Issue {
-  id: string;
-  severity: Severity;
-  agent: AgentType;
-  title: string;
-  filePath: string;
-  lineNumber: number;
-  codeSnippet: string;
-  fixSuggestion: string;
-}
+export type AgentType = "code" | "secrets" | "config" | "performance";
 
 interface IssueCardProps {
   issue: Issue;
 }
 
-const severityStyles: Record<Severity, string> = {
+const severityStyles: Record<string, string> = {
   CRITICAL: "bg-red-500/10 text-red-500 border-red-500/30",
   WARNING: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
   INFO: "bg-blue-500/10 text-blue-500 border-blue-500/30",
 };
 
-const agentIcons: Record<AgentType, typeof Code> = {
+const agentIcons: Record<string, typeof Code> = {
   code: Code,
-  secret: KeyRound,
+  secrets: KeyRound,
   config: Settings,
   performance: Zap,
 };
 
-const agentLabels: Record<AgentType, string> = {
+const agentLabels: Record<string, string> = {
   code: "Code Scanner",
-  secret: "Secret Detector",
+  secrets: "Secret Detector",
   config: "Config Audit",
   performance: "Performance",
 };
 
 export function IssueCard({ issue }: IssueCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const AgentIcon = agentIcons[issue.agent];
+  const AgentIcon = agentIcons[issue.agent] || Code;
   
   return (
     <div 
@@ -65,7 +54,7 @@ export function IssueCard({ issue }: IssueCardProps) {
         </span>
         
         {/* Agent icon */}
-        <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0" title={agentLabels[issue.agent]}>
+        <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0" title={agentLabels[issue.agent] || issue.agent}>
           <AgentIcon className="w-4 h-4 text-muted-foreground" />
         </div>
         
@@ -73,7 +62,7 @@ export function IssueCard({ issue }: IssueCardProps) {
         <div className="flex-1 min-w-0">
           <p className="font-medium text-foreground">{issue.title}</p>
           <p className="text-sm text-muted-foreground font-mono mt-1">
-            {issue.filePath}:{issue.lineNumber}
+            {issue.file}{issue.line ? `:${issue.line}` : ''}
           </p>
         </div>
         
@@ -89,18 +78,22 @@ export function IssueCard({ issue }: IssueCardProps) {
       {/* Expanded content */}
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-border">
-          <div className="mt-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Offending Code</p>
-            <pre className="bg-[#0a0a0a] border border-border rounded-md p-4 overflow-x-auto">
-              <code className="text-sm font-mono text-red-400">{issue.codeSnippet}</code>
-            </pre>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Suggested Fix</p>
-            <div className="bg-green-500/5 border border-green-500/20 rounded-md p-4">
-              <p className="text-sm text-green-400">{issue.fixSuggestion}</p>
+          {issue.snippet && (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Offending Code</p>
+              <pre className="bg-[#0a0a0a] border border-border rounded-md p-4 overflow-x-auto">
+                <code className="text-sm font-mono text-red-400">{issue.snippet}</code>
+              </pre>
             </div>
-          </div>
+          )}
+          {issue.fix && (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Suggested Fix</p>
+              <div className="bg-green-500/5 border border-green-500/20 rounded-md p-4">
+                <p className="text-sm text-green-400">{issue.fix}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

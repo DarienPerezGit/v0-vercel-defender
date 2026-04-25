@@ -7,14 +7,14 @@ export type AgentStatus = "idle" | "scanning" | "complete";
 
 interface AgentPillProps {
   name: string;
-  icon: "code" | "secret" | "config" | "performance";
+  icon: "code" | "secrets" | "config" | "performance";
   status: AgentStatus;
   issueCount: number;
 }
 
 const iconMap = {
   code: Code,
-  secret: KeyRound,
+  secrets: KeyRound,
   config: Settings,
   performance: Zap,
 };
