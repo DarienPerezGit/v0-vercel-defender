@@ -1,10 +1,13 @@
 import { generateObject } from 'ai'
-import { createVercel } from '@ai-sdk/vercel'
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 import type { Issue } from '@/types'
 import type { FileContent } from '@/lib/github'
 
-const vercel = createVercel()
+const anthropic = createAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: 'https://ai-gateway.vercel.sh/v1/anthropic',
+})
 
 const issueSchema = z.object({
   issues: z.array(
@@ -25,7 +28,7 @@ export async function runCodeScanner(files: FileContent[]): Promise<Issue[]> {
     .join('\n\n')
 
   const { object } = await generateObject({
-    model: vercel('anthropic/claude-sonnet-4-6'),
+    model: anthropic('claude-sonnet-4-6'),
     schema: issueSchema,
     prompt: `You are a security expert analyzing code for vulnerabilities.
 
