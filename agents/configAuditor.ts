@@ -1,10 +1,13 @@
 import { generateObject } from 'ai'
-import { createVercel } from '@ai-sdk/vercel'
+import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { Issue } from '@/types'
 import type { FileContent } from '@/lib/github'
 
-const vercel = createVercel()
+const gateway = createOpenAI({
+  baseURL: 'https://ai-gateway.vercel.sh/v1',
+  apiKey: process.env.VERCEL_API_TOKEN,
+})
 
 const issueSchema = z.object({
   issues: z.array(
@@ -25,7 +28,7 @@ export async function runConfigAuditor(files: FileContent[]): Promise<Issue[]> {
     .join('\n\n')
 
   const { object } = await generateObject({
-    model: vercel('anthropic/claude-sonnet-4-6'),
+    model: gateway('anthropic/claude-sonnet-4-6'),
     schema: issueSchema,
     prompt: `You are a security expert auditing configuration files for security issues.
 
